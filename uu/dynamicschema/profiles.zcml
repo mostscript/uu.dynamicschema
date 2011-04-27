@@ -7,7 +7,7 @@
     <genericsetup:registerProfile
         name="default"
         title="uu.dynamicschema: dynamic form schema components."
-        directory="profiles/default"a
+        directory="profiles/default"
         description="Components for dynamic schema with serialized persistence."
         provides="Products.GenericSetup.interfaces.EXTENSION"
         />
