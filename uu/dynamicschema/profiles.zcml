@@ -1,0 +1,15 @@
+<configure
+  xmlns="http://namespaces.zope.org/zope"
+  xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+  i18n_domain="uu.dynamicschema">
+     
+    <!-- register extension profiles for add-on --> 
+    <genericsetup:registerProfile
+        name="default"
+        title="uu.dynamicschema: dynamic form schema components."
+        directory="profiles/default"a
+        description="Components for dynamic schema with serialized persistence."
+        provides="Products.GenericSetup.interfaces.EXTENSION"
+        />
+
+</configure>

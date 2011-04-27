@@ -1,0 +1,7 @@
+<import-steps>
+  <import-step id="uu.dynamicschema-schemasaver"
+    handler="uu.dynamicschema.setuphandlers.install_schema_saver"
+    title="uu.dynamicschema local components (schema saver mapping)" version="1.0">
+    <dependency step="plone-final"/>
+  </import-step>
+</import-steps>

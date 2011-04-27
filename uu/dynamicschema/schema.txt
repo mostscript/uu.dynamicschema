@@ -1,0 +1,263 @@
+
+Supporting dynamic schema
+=========================
+
+We have entry objects which we wish to mark with dynamic interfaces created
+for form schema by end-users at runtime.  Moreover, these dynamic interfaces
+need to have a unique relationship to mark objects, and a means to persist
+themselves.
+
+Dynamic schema must be somehow able to have a deterministic relationship 
+with the objects providing the schema.  Here are the necessary ingredients:
+
+ * plone.supermodel provides a way to serialize interface schema to XML.
+
+ * plone.alterego provides a way to load an object (in this case an interface
+   into a dynamic module at runtime) only once for any given identifier name.
+   We use this to load the serialized interface just once into the namespace
+   of that dynamic module.
+
+ * An md5 hexidecimal digest/hash of plone.supermodel XML serialization
+   yields a unique identifier for a schema's functional equivalency.  
+   Moreover, hexidecimal syntax is lexically compatible with Python's rules
+   for identifiers, which makes for a sensible name for dynamically loaded
+   interface objects in the plone.alterego powered dynamic module we use.
+   The syntax of ('I%s' % md5(xml.strip()).hexdigest) presents useful unique
+   names for schema in the dynamic module.
+
+ * Given the above assumptions, we need a way to persist and share across
+   concurrent contexts both the serialization and the mapping of these MD5
+   signatures to the serializations.  We have a local utility acting as
+   a mapping (ISchemaSaver interface, using an OOBTree) to provide this
+   function.
+
+ * Entry objects should have the ability to compute a signature for
+   themselves, given a single interface/schema.  For this purpose, we have
+   created a sign() method and signature attribute on ISchemaSignedEntity.
+
+ * We need the ability to have schema injected into entry objects at runtime
+   based upon this plone.supermodel / plone.alterego / signature-based name
+   framework we have devised.  For this, we have a zope.interface 
+   ObjectSpecificationDescriptor subclass to provide the load and lookup
+   for entry instances.
+
+Usage
+-----
+
+First, get a entry record object:
+
+    >>> from persistent import Persistent
+    >>> from uu.dynamicschema.schema import SchemaSignedEntity
+    >>> class EntryRecord(Persistent, SchemaSignedEntity):
+    ...     pass
+    ... 
+    >>> entry = EntryRecord()
+
+Entry provides (EntryRecord class above implements) an interface of
+IPersistent (because it mixes in persistent.Persistent) and its
+schema-signed-entity base interface, ISchemaSignedEntity:
+
+    >>> from uu.dynamicschema.interfaces import ISchemaSignedEntity
+    >>> assert ISchemaSignedEntity.providedBy(entry)
+
+Entry has an attribute 'signature', but this is initially None
+
+    >>> assert entry.signature is None
+
+Initially, there are just two base interfaces for which the entry provides, 
+including IPersistent, ISchemaContext, and ISchemaSignedEntity:
+
+    >>> from zope.interface import providedBy
+    >>> provided = list(providedBy(entry))
+    >>> assert len(provided)==3
+    >>> from plone.schemaeditor.interfaces import ISchemaContext
+    >>> assert ISchemaContext.providedBy(entry)
+    >>> assert hasattr(entry, 'schema')
+    >>> assert entry.schema is not None
+    >>> from persistent.interfaces import IPersistent
+    >>> assert IPersistent in provided
+    >>> assert IPersistent.providedBy(entry)
+
+Create a dummy interface for which we define minimal schema:
+
+    >>> from zope.interface import Interface
+    >>> from zope.schema import TextLine
+    >>> class IFoo(Interface):
+    ...     title = TextLine(title=u'Title', default=u'hi', required=False)
+    ... 
+    >>> 
+
+Sign the object with this schema, will save a 32-byte md5sum in signature.
+Also by virtue of signing, the entry object gets the field defaults for 
+all the fields declared on the schema used for signing:
+
+    >>> assert not hasattr(entry, 'title') #IFoo.title
+    >>> entry.sign(IFoo)
+    >>> assert getattr(entry, 'title', None) is not None # field default
+    >>> assert entry.signature is not None
+    >>> assert isinstance(entry.signature, str) and len(entry.signature)==32
+
+Important note: the schema persistence and retrieval mechanism behind the
+scenes here (the ISchemaSaver utility) does its best to retain the reference
+to the original interface used to sign the entity/object, however, this is 
+not an iron-clad guarantee:
+
+    >>> assert IFoo.providedBy(entry)
+
+When the cache of interface lookups is cleared, that exact interface may not
+be returned in lookup, and the interface may fail to be provided by the entry
+object:
+
+    >>> from zope.component import queryUtility
+    >>> from uu.dynamicschema.interfaces import ISchemaSaver
+    >>> saver = queryUtility(ISchemaSaver)
+    >>> saver.invalidate(IFoo)
+    >>> assert not IFoo.providedBy(entry)
+
+There will be an interface/schema serialization in the Schema Saver that is
+functionally equivalent (a copy of the interface, insofar as it survives
+roundtrip serialization via plone.supermodel):
+
+    >>> signature = saver.signature(IFoo)
+    >>> assert signature in saver
+    >>> copied_schema = saver.load(saver.get(signature))
+    >>> assert copied_schema.providedBy(entry)
+
+An ad-hoc proof of functional equivalence is by comparing serializations -- 
+the XML definition of the schemas are identical:
+
+    >>> from plone.supermodel import serializeSchema
+    >>> assert serializeSchema(IFoo) == serializeSchema(copied_schema)
+
+The entry object does provide a dynamic interface that is a functional
+equivalent of IFoo.  This interface is loaded at runtime from persisted 
+serialization:
+
+    >>> from uu.dynamicschema.schema import generated
+    >>> iface_name = 'I%s' % entry.signature
+    >>> iface = getattr(generated, iface_name, None)
+    >>> assert iface is not None
+    >>> from zope.interface.interfaces import IInterface
+    >>> assert IInterface.providedBy(iface)
+
+The interfaces marked/provided by the object now include our dynamic
+interface:
+
+    >>> provided = list(providedBy(entry))
+    >>> assert len(provided)==4
+    >>> assert iface in provided
+
+The 'generated' module referenced above is a dynamic module provided by
+plone.alterego.  We have registered an IDynamicObjectFactory utility to
+provide the load/get for dynamic interfaces from the ISchemaSaver 
+persistence/serialization utility:
+
+    >>> from plone.alterego.interfaces import IDynamicObjectFactory
+    >>> from uu.dynamicschema.schema import SignatureSchemaFactory
+    >>> factory = queryUtility(IDynamicObjectFactory,
+    ...     name='uu.dynamicschema.schema.generated')
+    >>> assert isinstance(factory, SignatureSchemaFactory)
+
+But if the interfaces are dynamic, and generated at runtime, how does the
+relationship (and for that matter, the copied interface) persist?  This
+package saves a serialization of the interface schema in a local "schema
+saver" utility that is a mapping between MD5 signatures and the 
+plone.supermodel formatted XML representation of the schema.  
+
+    >>> saver = queryUtility(ISchemaSaver)
+    >>> assert entry.signature in saver
+
+How did this get put into the schema saver?  When we called entry.sign()
+above, this signed the object after adding the schema serialization to the
+saver.  For example, with a new entry and a new interface:
+
+    >>> assert len(saver.keys())==1
+    >>> class IWhatever(Interface):
+    ...     monkey = TextLine(title=u'Name of pet monkey', required=False)
+    ... 
+    >>> entry2 = EntryRecord()
+    >>> assert entry2.signature is None
+    >>> entry2.sign(IWhatever)
+    >>> assert entry2.signature is not None
+    >>> assert len(saver.keys())==2
+    >>> assert entry2.signature in saver
+
+
+Idempotence
+-----------
+
+It should be noted: it should be safe and reliable for purposes of marker
+interfaces to retrieve an interface with ISchemaSaver.load() more than once.
+This is because of a (tight) coupling between the implementations of 
+SchemaSaver and SignatureSchemaFactory for purposes of caching.
+
+    >>> schema1 = saver.load(saver.get(entry2.signature))
+    >>> schema2 = saver.load(saver.get(entry2.signature))
+    >>> schema3 = getattr(generated, 'I%s' % entry2.signature)
+    >>> assert schema1 is schema2 is schema3
+
+
+Mutable schema
+--------------
+
+Even in cases where a content component exposes schema through a getter
+(read-only property) interface, the schema object itself should be
+a normal, mutable, interface object, and the fields contained are mutable
+as well.
+
+    >>> assert schema1 is schema2
+    >>> assert schema1['monkey'].description == u'' #default empty desc.
+    >>> schema1['monkey'].description = u'Say something!'
+    >>> assert schema2['monkey'].description == u'Say something!'
+
+Caution should be noted, as modification of transient schema is not
+persisted, nor are cached load() operations by the ISchemaSaver utility
+invalidated.  Applications or tools modifying schema (such as a form schema
+editor using plone.schemaeditor) must take care to add the modified schema
+into the schema saver utility by calling its add() operation, then saving
+the new returned signature for that schema to the context being managed.
+
+First, a cached lookup for the old signature for a now-change interface must
+be cleared by the application:
+
+    >>> assert saver.load(saver.get(entry2.signature)) is schema1 #OUTDATED!
+    >>> saver.invalidate(schema1)
+    >>> original_schema = saver.load(saver.get(entry2.signature))
+    >>> assert original_schema is not schema1 #original now loaded, not mod.
+    >>> assert original_schema['monkey'].description == u'' # orig. default
+    >>> assert schema1['monkey'].description == u'Say something!'
+
+Clearly after invalidation, we are managing two distinct schemas.  However,
+the modified schema is no longer actually persisted (in serialized form) in
+the schema saver:
+
+    >>> assert serializeSchema(schema1).strip() not in saver.values()
+    >>> assert serializeSchema(original_schema).strip() in saver.values()
+
+So what to do?  We need to simply call add on the now-modified schema object:
+
+    >>> new_signature = saver.add(schema1)
+    >>> assert new_signature in saver
+    >>> assert serializeSchema(schema1).strip() in saver.values()
+
+And, as much as reasonably possible, ISchemaSaver.add() should try to keep
+a reference to the original passed schema, which will remain until either
+shutdown or invalidation.
+
+    >>> assert saver.load(saver.get(new_signature)) is schema1
+
+Again, be careful with the assumption that you will always get the same 
+schema passed in, especially if you are signing an entity with a non-dynamic
+schema.  If your object needs to always provide an interface more 
+permanently (esp. a non-dynamic interface), use zope.interface.alsoProvides:
+
+    >>> entry2.sign(schema1)
+    >>> assert schema1.providedBy(entry2)
+    >>> saver.invalidate(schema1)
+    >>> assert saver.load(saver.get(new_signature)) is not schema1
+    >>> assert not schema1.providedBy(entry2)
+    >>> from zope.interface import alsoProvides
+    >>> alsoProvides(entry2, schema1)
+    >>> assert schema1.providedBy(entry2)
+
+
