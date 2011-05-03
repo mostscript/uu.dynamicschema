@@ -30,6 +30,7 @@ setup(name='uu.dynamicschema',
           'plone.synchronize',
           'plone.schemaeditor',
           'Products.CMFPlone',
+          'uu.record',
           # -*- Extra requirements: -*-
       ],
       extras_require = {
