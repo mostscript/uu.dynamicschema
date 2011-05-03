@@ -3,8 +3,9 @@ from hashlib import md5
 from plone.supermodel import loadString
 from zope import schema
 from zope.interface.common.mapping import IMapping
-from zope.location.interfaces import ILocation
 from xml.parsers.expat import ExpatError
+
+from uu.record.interfaces import IRecord
 
 
 DEFAULT_MODEL_XML = """
@@ -26,27 +27,28 @@ def valid_xml_schema(xml):
     return True
 
 
-class ISchemaSignedEntity(ILocation):
+class ISchemaSignedEntity(IRecord):
     """
     An entity that is signed with the signature of a persisted dynamic
     interface/schema object.  The signature is the md5 hexidecimal digest
     of the XML serialization of the schema provided by plone.supermodel.
     
-    Entity is also a location with __name__ and __parent__ attributes of 
-    ILocation base interface.  __parent__ should normatively be the 
-    content-ish container of the entity records, but may be some other
-    context.
+    Entity is also:
+    
+      * a location with __name__ and __parent__ attributes of 
+        ILocation ancestor interface (via IRecord).
+        
+        __parent__ should normatively be the content-ish container of
+        the entity records, but may be some other context.
+    
+      * A record with a string-representation UUID attribute record_uid
+        (via IRecord).
+    
     """
     
     signature = schema.BytesLine(
         title=u'Schema signature',
         description=u'MD5 hex-digest signature of XML serialized schema',
-        required=False,
-        )
-
-    record_uid = schema.BytesLine(
-        title=u'Record UUID',
-        description=u'String representation of RFC 4122 UUID for record.',
         required=False,
         )
     

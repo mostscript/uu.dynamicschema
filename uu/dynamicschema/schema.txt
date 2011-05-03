@@ -48,8 +48,8 @@ First, get a entry record object:
 
     >>> from persistent import Persistent
     >>> from uu.dynamicschema.schema import SchemaSignedEntity
-    >>> class EntryRecord(Persistent, SchemaSignedEntity):
-    ...     pass
+    >>> class EntryRecord(SchemaSignedEntity):
+    ...     pass #dummy persistent schema signed entity/record
     ... 
     >>> entry = EntryRecord()
 
@@ -69,7 +69,7 @@ including IPersistent, ISchemaContext, and ISchemaSignedEntity:
 
     >>> from zope.interface import providedBy
     >>> provided = list(providedBy(entry))
-    >>> assert len(provided)==3
+    >>> assert len(provided)==4
     >>> from plone.schemaeditor.interfaces import ISchemaContext
     >>> assert ISchemaContext.providedBy(entry)
     >>> assert hasattr(entry, 'schema')
@@ -77,6 +77,14 @@ including IPersistent, ISchemaContext, and ISchemaSignedEntity:
     >>> from persistent.interfaces import IPersistent
     >>> assert IPersistent in provided
     >>> assert IPersistent.providedBy(entry)
+
+Via interface inheritance from ISchemaSignedEntity, an entry/record object
+provides uu.record.interfaces.IRecord and zope.location.interfaces.ILocation:
+
+    >>> from uu.record.interfaces import IRecord
+    >>> assert IRecord.providedBy(entry)
+    >>> from zope.location.interfaces import ILocation
+    >>> assert ILocation.providedBy(entry)
 
 Create a dummy interface for which we define minimal schema:
 
@@ -144,7 +152,7 @@ The interfaces marked/provided by the object now include our dynamic
 interface:
 
     >>> provided = list(providedBy(entry))
-    >>> assert len(provided)==4
+    >>> assert len(provided)==5
     >>> assert iface in provided
 
 The 'generated' module referenced above is a dynamic module provided by

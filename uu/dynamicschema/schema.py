@@ -20,6 +20,8 @@ from zope.interface.declarations import getObjectSpecification
 from zope.schema import getFieldNamesInOrder
 from BTrees.OOBTree import OOBTree
 
+from uu.record.base import Record
+
 from uu.dynamicschema.interfaces import ISchemaSaver
 from uu.dynamicschema.interfaces import ISchemaSignedEntity
 from uu.dynamicschema.interfaces import DEFAULT_MODEL_XML, DEFAULT_SIGNATURE
@@ -193,7 +195,7 @@ class SignatureSchemaContext(object):
         return self._v_schema[1]
 
 
-class SchemaSignedEntity(SignatureSchemaContext):
+class SchemaSignedEntity(Record, SignatureSchemaContext):
     """
     Base class for schema-signed entity.
     """
@@ -207,11 +209,10 @@ class SchemaSignedEntity(SignatureSchemaContext):
     def __init__(self, context=None, record_uid=None):
         self.context = self.__parent__ = context
         self.record_uid = record_uid or str(uuid.uuid4()) #random
-        super(SchemaSignedEntity, self).__init__(signature=None)
-    
-    @property
-    def __name__(self):
-        return self.record_uid
+        Record.__init__(self, context, record_uid)
+        SignatureSchemaContext.__init__(self, signature=None)
+        if getattr(context, 'schema', None):
+            self.sign(context.schema)
     
     def __getattr__(self, name):
         """If field, return default for attribute value"""
