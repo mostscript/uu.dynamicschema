@@ -10,7 +10,7 @@ from uu.record.interfaces import IRecord
 
 DEFAULT_MODEL_XML = """
 <model xmlns="http://namespaces.plone.org/supermodel/schema">
-  <schema/>
+  <schema />
 </model>
 """.strip()
 
