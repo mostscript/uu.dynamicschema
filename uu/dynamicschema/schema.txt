@@ -103,6 +103,10 @@ all the fields declared on the schema used for signing:
     >>> entry.sign(IFoo)
     >>> assert getattr(entry, 'title', None) is not None # field default
     >>> assert entry.signature is not None
+    >>> from plone.supermodel import serializeSchema
+    >>> from hashlib import md5
+    >>> xml = serializeSchema(IFoo).strip()
+    >>> assert entry.signature == md5(xml).hexdigest()
     >>> assert isinstance(entry.signature, str) and len(entry.signature)==32
 
 Important note: the schema persistence and retrieval mechanism behind the
@@ -179,7 +183,7 @@ How did this get put into the schema saver?  When we called entry.sign()
 above, this signed the object after adding the schema serialization to the
 saver.  For example, with a new entry and a new interface:
 
-    >>> assert len(saver.keys())==1
+    >>> assert len(saver.keys())==2 # entry schema and default schema
     >>> class IWhatever(Interface):
     ...     monkey = TextLine(title=u'Name of pet monkey', required=False)
     ... 
@@ -187,7 +191,7 @@ saver.  For example, with a new entry and a new interface:
     >>> assert entry2.signature is None
     >>> entry2.sign(IWhatever)
     >>> assert entry2.signature is not None
-    >>> assert len(saver.keys())==2
+    >>> assert len(saver.keys())==3
     >>> assert entry2.signature in saver
 
 

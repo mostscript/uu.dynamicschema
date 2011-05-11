@@ -6,7 +6,6 @@ from xml.parsers.expat import ExpatError
 
 from plone.alterego import dynamic
 from plone.alterego.interfaces import IDynamicObjectFactory
-from plone.memoize import ram
 from plone.supermodel import serializeSchema, loadString
 from plone.schemaeditor.interfaces import ISchemaContext
 from plone.synchronize import synchronized
@@ -31,10 +30,10 @@ logger = logging.getLogger('uu.dynamicschema')
 
 generated = dynamic.create('uu.dynamicschema.schema.generated')
 
-loaded = {}
+#empty schema loader using policy defined above:
+new_schema = lambda: loadString(DEFAULT_MODEL_XML).schema
 
-new_schema = lambda: loadString(DEFAULT_MODEL_XML).schema #empty schema loaded
-
+loaded = {} # cached signatures to transient schema objects
 
 def parse_schema(xml):
     if not xml.strip():
@@ -43,11 +42,6 @@ def parse_schema(xml):
         return loadString(xml).schema
     except ExpatError:
         raise RuntimeError('could not parse field schema xml')
-
-
-methodname = lambda ob,fn: '%s.%s' % (ob.__class__.__name__, fn.__name__)
-cache_key = lambda fn,ob,v: (methodname(ob,fn), hash(v))
-
 
 
 class SchemaSaver(OOBTree):
@@ -59,27 +53,53 @@ class SchemaSaver(OOBTree):
     
     implements(ISchemaSaver)
     
-    @ram.cache(cache_key)
+    def __init__(self):
+        super(SchemaSaver, self).__setitem__(DEFAULT_SIGNATURE,
+                                             DEFAULT_MODEL_XML)
+    
     def signature(self, schema):
         if IInterface.providedBy(schema):
             schema = serializeSchema(schema)
         return md5(schema.strip()).hexdigest()
     
-    def add(self, schema, iface=None):
+    def add(self, schema):
         """
         given schema as xml or interface, save to mapping, return md5
         signature for the saved xml serialization.
         """
-        global loaded
         if IInterface.providedBy(schema):
-            iface = schema
-            schema = serializeSchema(schema)
-        schema = schema.strip()
-        signature = self.signature(schema)
-        self[signature] = schema
-        if iface is not None:
-            loaded[signature] = iface
+            xml = serializeSchema(schema).strip()
+            signature = self.signature(xml)
+            if signature != DEFAULT_SIGNATURE:
+                self.invalidate(schema) # if schema modified, del stale sig
+                loaded[signature] = schema
+        else:
+            xml = schema.strip()
+            signature = self.signature(xml)
+        self[signature] = xml
         return signature
+    
+    def __setitem__(self, key, value):
+        if key is DEFAULT_SIGNATURE:
+            raise KeyError('Default schema cannot be modified')
+        value = str(value).strip()
+        if self.signature(value) != key:
+            raise ValueError('key does not match signature of value')
+        super(SchemaSaver, self).__setitem__(key, value)
+    
+    def __delitem__(self, key):
+        if key is DEFAULT_SIGNATURE:
+            raise KeyError('Default schema cannot be removed')
+        super(SchemaSaver, self).__delitem__(key, value)
+    
+    def load(self, xml):
+        global loaded
+        if xml.strip() == DEFAULT_MODEL_XML:
+            return new_schema()
+        signature = self.signature(xml)
+        if signature not in loaded:
+            loaded[signature] = parse_schema(xml)
+        return loaded[signature]
     
     def invalidate(self, schema):
         """invalidate transient cached/loaded interface/schema object"""
@@ -90,19 +110,6 @@ class SchemaSaver(OOBTree):
                 delkey = k
         if delkey:
             del(loaded[delkey])
-    
-    def __setitem__(self, key, value):
-        value = str(value).strip()
-        if self.signature(value) != key:
-            raise ValueError('key does not match signature of value')
-        super(SchemaSaver, self).__setitem__(key, value)
-    
-    def load(self, xml):
-        global loaded
-        signature = self.signature(xml)
-        if signature not in loaded:
-            loaded[signature] = parse_schema(xml)
-        return loaded[signature]
 
 
 class SignatureSchemaFactory(object):
@@ -124,7 +131,6 @@ class SignatureSchemaFactory(object):
     implements(IDynamicObjectFactory)
     
     _lock = Lock()
-    loaded = {}    
     
     @synchronized(_lock)
     def __call__(self, name, module):
@@ -191,7 +197,6 @@ class SignatureSchemaContext(object):
                 signature,
                 saver.load(saver.get(signature, None) or DEFAULT_MODEL_XML),
                 )
-            self._v_schema[1].__parent__ = self
         return self._v_schema[1]
 
 
