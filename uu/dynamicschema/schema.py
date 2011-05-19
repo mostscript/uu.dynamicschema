@@ -44,6 +44,16 @@ def parse_schema(xml):
         raise RuntimeError('could not parse field schema xml')
 
 
+def copy_schema(schema):
+    """
+    Make a transient copy of a schema object; useful for applications
+    modifying the schema (e.g. plone.schemaeditor) to avoid modifying a
+    schema in-place.  Usage pattern should be to get a copy, make changes
+    to the schema on the copy, and then replace the original.
+    """
+    return parse_schema(serializeSchema(schema))
+
+
 class SchemaSaver(OOBTree):
     """
     Mapping to persist xml schema from plone.supermodel. Values are
