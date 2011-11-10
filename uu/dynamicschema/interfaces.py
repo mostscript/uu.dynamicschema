@@ -7,6 +7,9 @@ from xml.parsers.expat import ExpatError
 
 from uu.record.interfaces import IRecord
 
+# various package globals:
+
+PKGNAME = 'uu.dynamicschema'
 
 DEFAULT_MODEL_XML = """
 <model xmlns="http://namespaces.plone.org/supermodel/schema">
@@ -52,12 +55,18 @@ class ISchemaSignedEntity(IRecord):
         required=False,
         )
     
-    def sign(schema):
+    def sign(schema, usedottedname=False):
         """
         Given schema as an interface object, serialize schema to XML, save
         serialization in ISchemaSaver local/persistent utility, and save
         self.signature as the MD5 hexdigest of the XML serialization 
         stripped of trailing, leading whitespace.
+        
+        If usedottedname is true, and schema has a proper identifier NOT
+        sourced from a dynamic module namespace (that is, it can be
+        resolved in a real python module namespace), then the signature
+        will be stored as a resolvable dotted name instead of an MD5
+        signature.
         """
 
 

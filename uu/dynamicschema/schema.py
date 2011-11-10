@@ -1,3 +1,4 @@
+import re
 import logging
 import uuid
 from threading import Lock
@@ -7,9 +8,12 @@ from xml.parsers.expat import ExpatError
 from plone.alterego import dynamic
 from plone.alterego.interfaces import IDynamicObjectFactory
 from plone.supermodel import serializeSchema, loadString
+from plone.supermodel.interfaces import ISchemaPolicy
+from plone.supermodel.parser import DefaultSchemaPolicy
 from plone.schemaeditor.interfaces import ISchemaContext
 from plone.synchronize import synchronized
 from zope.component import queryUtility
+from zope.dottedname.resolve import resolve
 from zope.interface import implements
 from zope.interface.interfaces import IInterface
 from zope.interface.declarations import Implements
@@ -21,25 +25,55 @@ from BTrees.OOBTree import OOBTree
 
 from uu.record.base import Record
 
-from uu.dynamicschema.interfaces import ISchemaSaver
-from uu.dynamicschema.interfaces import ISchemaSignedEntity
+from uu.dynamicschema.interfaces import ISchemaSaver, ISchemaSignedEntity
+from uu.dynamicschema.interfaces import PKGNAME
 from uu.dynamicschema.interfaces import DEFAULT_MODEL_XML, DEFAULT_SIGNATURE
 
 
-logger = logging.getLogger('uu.dynamicschema')
+IDENTIFIER = re.compile('^[A-Za-z_][A-Za-z0-9_]*$')
+HEXSTRING = re.compile('^[A-Fa-f0-9]+$')
 
-generated = dynamic.create('uu.dynamicschema.schema.generated')
+logger = logging.getLogger(PKGNAME)
+
+generated = dynamic.create('.'.join((PKGNAME, 'schema.generated')))
+
+ismd5hex = lambda v: v and len(v)==32 and HEXSTRING.search(v)
+
+alltrue = lambda a,b: a == b == True
+
+names = lambda name: name.split('.')
+
+isidentifier = lambda name: bool(IDENTIFIER.search(name))
+
+isdottedname = lambda v: v and reduce(alltrue, map(isidentifier, names(v)))
+
+
+# schema policy, here to get an accurate schema.__module__
+class DynamicSchemaPolicy(DefaultSchemaPolicy):
+    """
+    Here to override default: schema loaded from serializations
+    should have a __module__ attribute with a value of 
+    'uu.dynamicschema.schema.generated'  This should be 
+    registered for use as a named ISchemaPolicy utility in the
+    global site manager.
+    """
+    
+    def module(self, schemaName, tree):
+        global generated
+        return generated.__name__
+
 
 #empty schema loader using policy defined above:
-new_schema = lambda: loadString(DEFAULT_MODEL_XML).schema
+new_schema = lambda: loadString(DEFAULT_MODEL_XML, policy=PKGNAME).schema
 
 loaded = {} # cached signatures to transient schema objects
+
 
 def parse_schema(xml):
     if not xml.strip():
         return new_schema()
     try:
-        return loadString(xml).schema
+        return loadString(xml, policy=PKGNAME).schema
     except ExpatError:
         raise RuntimeError('could not parse field schema xml')
 
@@ -179,6 +213,20 @@ class SignatureAwareDescriptor(ObjectSpecificationDescriptor):
         signature = getattr(inst, 'signature', None)
         if signature is None:
             return spec
+        if not ismd5hex(signature):
+            if not isdottedname(signature):
+                return spec
+            # not an md5 signature, so perhaps we have a dotted name
+            try:
+                iface = resolve(signature)
+                if not IInterface.providedBy(iface):
+                    raise ValueError('Not interface: %s' % signature)
+                return Implements(iface, spec)
+            except ImportError:
+                logger.warning('SignatureAwareDescriptor: '\
+                               'unabled to resolve interface '\
+                               '%s by dotted name.')
+                return spec
         iface_name =  'I%s' % signature
         dynamic = [getattr(generated, iface_name)]
         dynamic.append(spec)
@@ -199,6 +247,13 @@ class SignatureSchemaContext(object):
         signature = self.signature
         if signature is None:
             signature = self.signature = self.__class__.signature
+        if signature and not ismd5hex(signature):
+            if not isdottedname(signature):
+                raise ValueError('schema signature invalid: %s' % signature)
+            iface = resolve(signature) # resolve dotted name
+            if not IInterface.providedBy(iface):
+                raise ValueError('Not interface: %s' % signature)
+            return iface
         if not hasattr(self, '_v_schema') or self._v_schema[0] != signature:
             # non-existent or stale _v_schema attribute; a change in
             # peristent signature will invalidate _v_schema
@@ -243,10 +298,16 @@ class SchemaSignedEntity(Record, SignatureSchemaContext):
                 return field.default
         raise AttributeError(name)
     
-    def sign(self, schema):
+    def sign(self, schema, usedottedname=False):
         """
         sign the object with the signature of the schema used on it
         """
+        if usedottedname:
+            if schema.__module__ != '.'.join((PKGNAME, 'schema.generated')):
+                if isdottedname(schema.__identifier__):
+                    resolve(schema.__identifier__) # make sure it can be imported
+                    self.signature = schema.__identifier__
+                    return
         saver = queryUtility(ISchemaSaver)
         #persist serialization of schema, get signature
         self.signature = saver.add(schema)

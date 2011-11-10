@@ -126,6 +126,25 @@ object:
     >>> saver.invalidate(IFoo)
     >>> assert not IFoo.providedBy(entry)
 
+However, there is a way to sign an entity object directing it to reference
+an interface created in a resolvable Python module, not the dynamic
+namespace.  Note, the module must be importable, using __import__ such
+that zope.dottedname can actually resolve the interface you are signing
+with.  This mechanism signs the object with the dottedname of the 
+schema, not the md5 hash of its serialization:
+
+    >>> dn_entry = EntryRecord()
+    >>> from uu.dynamicschema.tests import IMockWhatever
+    >>> dn_entry.sign(IMockWhatever, True) #use dotted name, not md5
+    >>> assert getattr(dn_entry, 'title', None) is not None # field default
+    >>> assert dn_entry.signature is not None
+    >>> assert dn_entry.signature == IMockWhatever.__identifier__
+    >>> from plone.supermodel import serializeSchema
+    >>> from hashlib import md5
+    >>> xml = serializeSchema(IMockWhatever).strip()
+    >>> assert dn_entry.signature != md5(xml).hexdigest() #nope!
+    >>> assert IMockWhatever.providedBy(dn_entry)
+
 There will be an interface/schema serialization in the Schema Saver that is
 functionally equivalent (a copy of the interface, insofar as it survives
 roundtrip serialization via plone.supermodel):
@@ -149,8 +168,14 @@ serialization:
     >>> iface_name = 'I%s' % entry.signature
     >>> iface = getattr(generated, iface_name, None)
     >>> assert iface is not None
+    >>> module = iface.__module__
+    >>> from uu.dynamicschema.interfaces import PKGNAME
+    >>> assert module == '.'.join((PKGNAME, 'schema.generated'))
     >>> from zope.interface.interfaces import IInterface
     >>> assert IInterface.providedBy(iface)
+
+Note, the interface  
+    >>> assert iface.__identifier__ == '.'.join((module, ''))
 
 The interfaces marked/provided by the object now include our dynamic
 interface:

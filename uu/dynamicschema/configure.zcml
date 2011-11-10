@@ -18,4 +18,10 @@
     name="uu.dynamicschema.schema.generated"
     />
 
+  <utility
+    factory=".schema.DynamicSchemaPolicy"
+    provides="plone.supermodel.interfaces.ISchemaPolicy"
+    name="uu.dynamicschema"
+    />
+
 </configure>
