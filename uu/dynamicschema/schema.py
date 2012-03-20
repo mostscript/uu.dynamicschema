@@ -179,6 +179,8 @@ class SignatureSchemaFactory(object):
     
     @synchronized(_lock)
     def __call__(self, name, module):
+        if name.startswith('__'):
+            return None
         global loaded
         # use schema-saver to get interface
         signature = name[1:] # "I[md5hex]" -> "[md5hex]"
