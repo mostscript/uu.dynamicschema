@@ -280,7 +280,6 @@ class SchemaSignedEntity(Record, SignatureSchemaContext):
     __providedBy__ = SignatureAwareDescriptor()
     
     def __init__(self, context=None, record_uid=None):
-        self.context = self.__parent__ = context
         self.record_uid = record_uid or str(uuid.uuid4()) #random
         Record.__init__(self, context, record_uid)
         SignatureSchemaContext.__init__(self, signature=None)
