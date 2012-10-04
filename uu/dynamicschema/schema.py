@@ -135,7 +135,7 @@ class SchemaSaver(OOBTree):
     def __delitem__(self, key):
         if key is DEFAULT_SIGNATURE:
             raise KeyError('Default schema cannot be removed')
-        super(SchemaSaver, self).__delitem__(key, value)
+        super(SchemaSaver, self).__delitem__(key)
     
     def load(self, xml):
         global loaded
