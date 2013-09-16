@@ -14,7 +14,7 @@ from plone.schemaeditor.interfaces import ISchemaContext
 from plone.synchronize import synchronized
 from zope.component import queryUtility
 from zope.dottedname.resolve import resolve
-from zope.interface import implements
+from zope.interface import Interface, implements
 from zope.interface.interface import InterfaceClass
 from zope.interface.interfaces import IInterface
 from zope.interface.declarations import Implements
