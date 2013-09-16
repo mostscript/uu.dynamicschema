@@ -197,7 +197,7 @@ class SignatureSchemaFactory(object):
                            'serialization; using placeholder.')
             schema = InterfaceClass(
                 name,
-                (interface.Interface),
+                (Interface),
                 __module__=module.__name__,
                 ) #placeholder (anonymous marker) interface
         return schema
