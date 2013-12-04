@@ -1,5 +1,5 @@
 """
-purge_orphans.py: instance run script to remove orphaned schemas in 
+purge_orphans.py: instance run script to remove orphaned schemas in
 ISchemaSaver utility for all sites in an instance, when applicable.
 """
 
@@ -26,11 +26,13 @@ def remove_orphan_schemas(app):
             ),
         }
         result = catalog.search(query)
-        valid_signatures = [b._unrestrictedGetObject().signature for b in result]
+        valid_signatures = [
+            b._unrestrictedGetObject().signature for b in result
+            ]
         orphan_keys = set(saver.keys()).difference(valid_signatures)
         if not orphan_keys:
             continue
-        orphan_bytes = sum([len(saver.get(k,'')) for k in orphan_keys])
+        orphan_bytes = sum([len(saver.get(k, '')) for k in orphan_keys])
         print ('[%s] Found %s orphaned schemas (%s bytes); removing.' % (
             site.getId(),
             len(orphan_keys),
@@ -43,12 +45,10 @@ def remove_orphan_schemas(app):
             print '.',
         print
         txn = transaction.get()
-        txn.note('/'.join(site.getPhysicalPath())
+        txn.note('/'.join(site.getPhysicalPath()))
         txn.note('Removed orphan schemas from ISchemaSaver utility')
         txn.commit()
 
 
 if __name__ == '__main__' and 'app' in locals():
-    remove_orphan_schemas(app)
-
-
+    remove_orphan_schemas(app)  # noqa

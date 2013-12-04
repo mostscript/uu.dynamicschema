@@ -5,6 +5,7 @@ from plone.testing import layered
 
 from uu.dynamicschema.tests.layers import DEFAULT_PROFILE_TESTING
 
+
 def test_suite():
     suite = unittest.TestSuite()
     suite.addTests([

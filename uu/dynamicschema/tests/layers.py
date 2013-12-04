@@ -1,8 +1,6 @@
 from plone.app.testing import PloneSandboxLayer
 from plone.app.testing import PLONE_FIXTURE
 from plone.app.testing import IntegrationTesting, FunctionalTesting
-from plone.testing import z2
-from zope.configuration import xmlconfig
 
 
 # fixture layer classes:
@@ -23,7 +21,7 @@ class ProductLayer(PloneSandboxLayer):
 
 class DefaultProfileTestLayer(ProductLayer):
     """Layer for default profile testing"""
-    
+
     PROFILE = 'uu.dynamicschema:default'
 
 
