@@ -25,7 +25,7 @@ def remove_orphan_schemas(app):
                 'uu.formlibrary.fieldgroup'
             ),
         }
-        result = catalog.search(query)
+        result = catalog.unrestrictedSearchResults(query)
         valid_signatures = [
             b._unrestrictedGetObject().signature for b in result
             ]
