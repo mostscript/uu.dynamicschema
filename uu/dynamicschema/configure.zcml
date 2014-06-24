@@ -24,4 +24,10 @@
     name="uu.dynamicschema"
     />
 
+  <!-- adapter(s) -->
+
+  <adapter
+    factory=".schema.SchemaImportExport"
+    />
+
 </configure>

@@ -1,9 +1,11 @@
-import re
-import logging
-import uuid
-from threading import Lock
+from cStringIO import StringIO
 from hashlib import md5
+import logging
+import re
+from threading import Lock
+import uuid
 from xml.parsers.expat import ExpatError
+import zipfile
 
 from plone.alterego import dynamic
 from plone.alterego.interfaces import IDynamicObjectFactory
@@ -11,7 +13,7 @@ from plone.supermodel import serializeSchema, loadString
 from plone.supermodel.parser import DefaultSchemaPolicy
 from plone.schemaeditor.interfaces import ISchemaContext
 from plone.synchronize import synchronized
-from zope.component import queryUtility
+from zope.component import adapts, queryUtility
 from zope.dottedname.resolve import resolve
 from zope.interface import Interface, implements
 from zope.interface.interface import InterfaceClass
@@ -26,6 +28,7 @@ from BTrees.OOBTree import OOBTree
 from uu.record.base import Record
 
 from uu.dynamicschema.interfaces import ISchemaSaver, ISchemaSignedEntity
+from uu.dynamicschema.interfaces import ISchemaImportExport
 from uu.dynamicschema.interfaces import PKGNAME
 from uu.dynamicschema.interfaces import DEFAULT_MODEL_XML, DEFAULT_SIGNATURE
 
@@ -152,6 +155,41 @@ class SchemaSaver(OOBTree):
                 delkey = k
         if delkey:
             del(loaded[delkey])
+
+
+class SchemaImportExport(object):
+    """Adapter for schema saver import/export to/from zip file"""
+
+    adapts(ISchemaSaver)
+
+    implements(ISchemaImportExport)
+
+    def __init__(self, context=None):
+        context = context or queryUtility(ISchemaSaver)
+        if not ISchemaSaver.providedBy(context):
+            raise ValueError('Context is not schema saver: %s' % context)
+        self.context = context
+
+    def load(self, stream):
+        archive = zipfile.ZipFile(stream, 'r')
+        for info in archive.infolist():
+            name = info.filename
+            signature = name.replace('.xml', '')
+            xml = archive.open(info, 'r').read().strip()
+            assert self.context.signature(xml) == signature  # sanity check
+            if signature not in self.context:
+                self.context.add(xml)
+        archive.close()
+
+    def dump(self, stream=None):
+        if stream is None:
+            stream = StringIO()
+        archive = zipfile.ZipFile(stream, mode='w')
+        for signature, xml in self.context.items():
+            filename = '%s.xml' % signature
+            archive.writestr(filename, xml)
+        archive.close()
+        return stream
 
 
 class SignatureSchemaFactory(object):

@@ -234,6 +234,66 @@ SchemaSaver and SignatureSchemaFactory for purposes of caching.
     >>> assert schema1 is schema2 is schema3
 
 
+Import/export adapters (ZIP file)
+---------------------------------
+
+    There is an adapter to save/load all schemas in a schema saver to a
+    zip file.
+
+    First, let's save a copy of schema keys/values to compare against:
+
+    >>> expected_contents = list(saver.items())
+
+    For import/export, we will need a temporary filestream to work with
+    to save/load ZIP file content of schemas.
+
+    >>> import tempfile
+    >>> stream = tempfile.TemporaryFile(mode='w+b')
+    
+    >>> from uu.dynamicschema.interfaces import ISchemaImportExport
+    >>> from uu.dynamicschema.schema import SchemaImportExport
+    >>> from uu.dynamicschema.interfaces import DEFAULT_SIGNATURE
+
+    Adapter can be constructed explicitly calling adapter class constructor
+    with the schema saver component:
+
+    >>> adapter = SchemaImportExport(saver)
+    >>> assert ISchemaImportExport.providedBy(adapter)
+
+    Adapter can also be constructed without a context if there is a
+    querable schema saver utility in the local component registry:
+
+    >>> adpater = SchemaImportExport()
+    >>> assert adapter.context is saver
+
+    Finally, adapter is registered, so that interface-calling/cast
+    semantics work as expected:
+
+    >>> adapter = ISchemaImportExport(saver)
+    >>> assert ISchemaImportExport.providedBy(adapter)
+    >>> assert isinstance(adapter, SchemaImportExport)
+    >>> assert adapter.context is saver
+
+    Let's export schema saver contents:
+
+    >>> stream = adapter.dump(stream)
+    
+    Then clear the schema saver, then restore:
+
+    >>> for signature in list(saver.keys()):
+    ...     if signature != DEFAULT_SIGNATURE:
+    ...         del(saver[signature])
+    ... 
+    >>> assert len(saver) == 1  # cleared
+    >>> adapter.load(stream)
+    >>> assert len(saver) == 3  # restored
+    >>> for signature, xml in expected_contents:
+    ...     assert signature in saver
+    ...     assert saver.get(signature) == xml
+    ...
+    >>> stream.close()
+
+
 Mutable schema
 --------------
 

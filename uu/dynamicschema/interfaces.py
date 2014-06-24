@@ -2,6 +2,7 @@ from hashlib import md5
 
 from plone.supermodel import loadString
 from zope import schema
+from zope.interface import Interface
 from zope.interface.common.mapping import IMapping
 from xml.parsers.expat import ExpatError
 
@@ -103,4 +104,29 @@ class ISchemaSaver(IMapping):
 
     def invalidate(schema):
         """invalidate transient cached/loaded interface/schema object"""
+
+
+class ISchemaImportExport(Interface):
+    """
+    Adapter interface for export of all schemas to/from zip file.  Should
+    adapt schema saver, but may be constructed to get a default schema saver
+    on construction (implementation-specific).
+
+    Key/value conventions:
+
+     * File name is [MD5sum].xml
+     * File content is supermodel-parsable XML of schema.
+    """
+
+    def load(stream):
+        """
+        Given stream or filename to a zip file, import contained
+        schemas from it.  Filenames and contents must match conventions
+        described above.
+        """
+
+    def dump(stream=None):
+        """
+        Return a stream, or write to an existing one.
+        """
 
