@@ -121,7 +121,8 @@ class SchemaSaver(OOBTree):
         else:
             xml = schema.strip()
             signature = self.signature(xml)
-        self[signature] = xml
+        if signature not in self:
+            self[signature] = xml
         return signature
 
     def __setitem__(self, key, value):
