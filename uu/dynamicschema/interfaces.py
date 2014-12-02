@@ -13,13 +13,15 @@ from uu.record.interfaces import IRecord
 PKGNAME = 'uu.dynamicschema'
 
 DEFAULT_MODEL_XML = (
-    '<model xmlns:security="http://namespaces.plone.org/supermodel/security" '
+    '<model xmlns:i18n="http://xml.zope.org/namespaces/i18n" '
+    'xmlns:security="http://namespaces.plone.org/supermodel/security" '
     'xmlns:marshal="http://namespaces.plone.org/supermodel/marshal" '
     'xmlns:form="http://namespaces.plone.org/supermodel/form" '
     'xmlns="http://namespaces.plone.org/supermodel/schema">\n'
-    '  <schema/>\n'
+    '  <schema based-on="zope.interface.Interface"/>\n'
     '</model>'
     ).strip()
+    
 
 DEFAULT_SIGNATURE = md5(DEFAULT_MODEL_XML.strip()).hexdigest()
 
