@@ -285,7 +285,7 @@ class SignatureSchemaContext(object):
     def schema(self):
         signature = self.signature
         if signature is None:
-            signature = self.signature = self.__class__.signature
+            signature = self.__class__.signature
         if signature and not ismd5hex(signature):
             if not isdottedname(signature):
                 raise ValueError('schema signature invalid: %s' % signature)
